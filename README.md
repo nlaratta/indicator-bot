@@ -5,7 +5,7 @@ Currently requires that you already have an open position in your desired tradin
 
 ## Strategy ##
 
-- Sells if MACD crosses below the MACD signal line.
+- Sells if MACD crosses below the MACD signal line and price has risen by .4% since purchase.
 - Buys if MACD crosses above the MACD signal line.
 	- Also buys if price drops by 2% since last sale.
 
