@@ -58,9 +58,9 @@ def tradingstrat(symbol, qty, buyprice, buymacd, open_position=True):
                     and (buyprice == 0 or float(df.iloc[-1].Close) - buyprice > (buyprice * 0.004)):
                 # and (buymacd == 0 or float(ta.trend.macd(df.Close).iloc[-1]) - buymacd > 0.01) \
                 order = client.create_market_order(symbol=symbol, side='sell', funds=qty)
-                sleep(4)
                 sellmacd = float(ta.trend.macd(df.Close).iloc[-1])
                 sellprice = float(df.iloc[-1].Close)
+		sleep(4)
                 print('Sold $' + qty + ' worth of ' + symbol + ' at $' + str(sellprice))
                 open_position = False
                 break
@@ -84,10 +84,10 @@ def tradingstrat(symbol, qty, buyprice, buymacd, open_position=True):
                     # and (sellprice - float(df.iloc[-1].Close)) > (sellprice * 0.003) \
                     # and sellmacd - float(ta.trend.macd(df.Close).iloc[-1]) > 0.01 \
             ) or sellprice - float(df.iloc[-1].Close) > (sellprice * 0.02):
-                order = client.create_market_order(symbol=symbol, side='buy', funds=str(balance - .01))
-                sleep(4)
+                order = client.create_market_order(symbol=symbol, side='buy', funds=qty)
                 buymacd = float(ta.trend.macd(df.Close).iloc[-1])
                 buyprice = float(df.iloc[-1].Close)
+		sleep(4)
                 print('Bought $' + qty + ' worth of ' + symbol + ' at $' + str(buyprice))
                 open_position = True
                 break
@@ -102,4 +102,4 @@ if __name__ == '__main__':
 	funds = config.FUNDS
 	symbol = config.SYMBOL
     while True:
-        buyprice = tradingstrat(symbol, '10', buyprice, buymacd)
+        buyprice = tradingstrat(symbol, funds, buyprice, buymacd)
