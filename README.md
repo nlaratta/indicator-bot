@@ -1,6 +1,8 @@
 # Crypto Indicator Swing Bot (Kucoin) #
 Swing trading bot that attempts to capitalize on short term reversal events using the MACD indicator. 
 
+Currently requires that you already have an open position in your desired trading pair.
+
 ## Strategy ##
 
 - Sells if MACD crosses below the MACD signal line.
