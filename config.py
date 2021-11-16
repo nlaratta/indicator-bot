@@ -12,3 +12,7 @@ FUNDS = 10
 
 # Change this to the pairing you want to trade. Default = Bitcoin/USDT
 SYMBOL = 'BTC-USDT'
+
+# Candlestick period used for TA. Longer period = longer term strategy.
+# Options: 1min, 3min, 15min, 30min, 1hour, 2hour, 4hour, 6hour, 8hour, 12hour, 1day, 1week
+PERIOD = '5min'
