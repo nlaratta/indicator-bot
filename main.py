@@ -20,7 +20,7 @@ def getminutedata(symbol):
 
     while True:
         try:
-            df = pd.DataFrame(client.get_kline_data(symbol, '5min'))
+            df = pd.DataFrame(client.get_kline_data(symbol, config.PERIOD))
             break
         except KucoinAPIException as e:
             print(e)
