@@ -9,7 +9,7 @@ import math
 import config
 
 
-client = Client(config.credentials['key'], config.credentials['secret'], config.credentials['pass'])
+client = Client(config.CREDENTIALS['key'], config.CREDENTIALS['secret'], config.CREDENTIALS['pass'])
 # Available USDT balance in Kucoin trading account
 balance = math.floor(float(client.get_accounts('USDT')[0]['available']) * 100) / 100.0
 
@@ -99,7 +99,7 @@ if __name__ == '__main__':
     buymacd = 0
     sellprice = 0
     sellmacd = 0
-	funds = config.FUNDS
-	symbol = config.SYMBOL
+    funds = config.FUNDS
+    symbol = config.SYMBOL
     while True:
         buyprice = tradingstrat(symbol, funds, buyprice, buymacd)
