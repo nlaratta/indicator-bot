@@ -1,5 +1,6 @@
-pip install virtualenv
+pip3 install venv
+pip3 install virtualenv
 python3 -m venv env
-call .\env\bin\activate
-pip install -r requirements.txt
-python main.py
+call env/scripts/activate
+pip3 install -r requirements.txt
+main.py
