@@ -38,6 +38,23 @@ Currently requires that you already have an open position in your desired tradin
 
     `python main.py`
 
+## Running backtests ##
+
+Currently only supports one strategy(Awesome Oscillator). 
+
+
+**On Windows:**
+
+1. Execute the 'backtest.bat' file.
+
+**On Linux:**
+
+1. Follow steps 1 & 2 for running the bot, then run the backtest:
+
+    `python main.py`
+
+*If backtest fails to execute, try swapping the order of the pairing in config.py*
+
 # DISCLAIMER #
 
 I am not responsible for any losses incurred through the use of this bot.
