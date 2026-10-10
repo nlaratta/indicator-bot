@@ -1,105 +1,105 @@
-# Press Shift+F10 to execute.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+"""KuCoin MACD swing bot. Runs in DRY_RUN mode (log only) unless DRY_RUN=0 with credentials set."""
+import argparse
+import math
+import sys
+from time import sleep
+
+import pandas as pd
+import requests
 from kucoin.client import Client
 from kucoin.exceptions import KucoinAPIException
-from time import sleep
-import pandas as pd
-import ta
-import math
+
 import config
+from strategy import decide
+
+KLINE_COLUMNS = ['Time', 'Open', 'Close', 'High', 'Low', 'Amount', 'Volume']
 
 
-client = Client(config.CREDENTIALS['key'], config.CREDENTIALS['secret'], config.CREDENTIALS['pass'])
-# Available USDT balance in Kucoin trading account
-balance = math.floor(float(client.get_accounts('USDT')[0]['available']) * 100) / 100.0
+def require_live_credentials():
+    """Fail fast with a clear message if live trading is requested without credentials."""
+    names = {'key': 'KUCOIN_API_KEY', 'secret': 'KUCOIN_API_SECRET', 'pass': 'KUCOIN_API_PASSPHRASE'}
+    missing = [env for k, env in names.items() if not config.CREDENTIALS.get(k)]
+    if missing:
+        sys.exit('Live trading (DRY_RUN=0) needs all three credentials. Missing: '
+                 + ', '.join(missing) + '. Set them in .env (see .env.example), or use DRY_RUN=1.')
 
 
-# Pulls trade data from the start of the day (UTC) to present
-def getminutedata(symbol):
-    global balance
+def make_client():
+    # Public market data needs no credentials, so dry run uses an unauthenticated client.
+    if config.DRY_RUN:
+        return Client()
+    require_live_credentials()
+    return Client(config.CREDENTIALS['key'], config.CREDENTIALS['secret'], config.CREDENTIALS['pass'])
 
+
+def get_usdt_balance(client):
+    return math.floor(float(client.get_accounts('USDT')[0]['available']) * 100) / 100.0
+
+
+def get_minute_data(client, symbol, period):
+    """Candles from the start of the day (UTC) to now, oldest first, indexed by time."""
+    df = pd.DataFrame(client.get_kline_data(symbol, period), columns=KLINE_COLUMNS)
+    df = df.set_index('Time')
+    df.index = pd.to_datetime(df.index.astype(float), unit='s')
+    df = df.astype(float)
+    return df.iloc[::-1]
+
+
+def run(client, once=False):
+    symbol, qty = config.SYMBOL, str(config.FUNDS)
+    mode = 'DRY RUN (no orders will be placed)' if config.DRY_RUN else 'LIVE'
+    print(f'Starting {mode}: {symbol} {config.PERIOD}, ${qty} per order')
+    # Like the original bot, assume an open position exists with unknown buy price.
+    open_position, buy_price, sell_price = True, 0.0, 0.0
     while True:
         try:
-            df = pd.DataFrame(client.get_kline_data(symbol, config.PERIOD))
-            break
-        except KucoinAPIException as e:
+            df = get_minute_data(client, symbol, config.PERIOD)
+        except (KucoinAPIException, requests.RequestException) as e:
+            if once:
+                raise
             print(e)
             sleep(5)
-    df.columns = ['Time', 'Open', 'Close', 'High', 'Low', 'Amount', 'Volume']
-    df = df.set_index('Time')
-    df.index = pd.to_datetime(df.index, unit='s')
-    df = df.astype(float)
-    df = df.iloc[::-1]
-    print(df.iloc[-1])
-    balance = math.floor(float(client.get_accounts('USDT')[0]['available']) * 100) / 100.0
-    print('Balance: $' + str(balance))
-    return df
+            continue
+        if df.empty:
+            print('No candles returned.')
+            if once:
+                return None
+            sleep(config.POLL_SECONDS)
+            continue
+        last = float(df.iloc[-1].Close)
+        print(df.iloc[-1])
+        if not config.DRY_RUN:
+            print('Balance: $' + str(get_usdt_balance(client)))
+        signal = decide(df, open_position, buy_price, sell_price)
+        print(f'{"Open" if open_position else "Closed"} position, last close {last}, signal: {signal}')
+
+        if signal:
+            side = signal
+            if config.DRY_RUN:
+                print(f'[DRY RUN] WOULD {side.upper()} ${qty} of {symbol} at ${last}')
+            else:
+                client.create_market_order(symbol=symbol, side=side, funds=qty)
+                sleep(4)
+                print(f'{side.capitalize()} ${qty} worth of {symbol} at ${last}')
+            if side == 'sell':
+                open_position, sell_price = False, last
+            else:
+                open_position, buy_price = True, last
+        if once:
+            return signal
+        sleep(config.POLL_SECONDS)
 
 
-# Sell when MACD histogram is negative, buy when it's positive
-# qty = string, a number equal to the USDT value of the position
-def tradingstrat(symbol, qty, buyprice, buymacd, open_position=True):
-    fee = str(int(qty) * config.FEE)
-
-    # Sells if MACD Histogram (MACD - MACD Signal) is negative
-	#
-    # WIP (Strategy and implementation): 
-    # Sells if MACD is .01 more than MACD at purchase.
-    # Sells if trade profit is at least .6% before fees
-    # This ensures that insignificant fluctuations don't create orders.
-    if open_position:
-        while True:
-            sleep(1)
-            df = getminutedata(symbol)
-            print('Open position. MACDH: ')
-            print(ta.trend.macd_diff(df.Close).iloc[-1])
-            if ta.trend.macd_diff(df.Close).iloc[-1] < 0 \
-                    and ta.trend.macd_diff(df.Close).iloc[-2] > 0 \
-                    and (buyprice == 0 or float(df.iloc[-1].Close) - buyprice > (buyprice * 0.004)):
-                # and (buymacd == 0 or float(ta.trend.macd(df.Close).iloc[-1]) - buymacd > 0.01) \
-                order = client.create_market_order(symbol=symbol, side='sell', funds=qty)
-                sellmacd = float(ta.trend.macd(df.Close).iloc[-1])
-                sellprice = float(df.iloc[-1].Close)
-		sleep(4)
-                print('Sold $' + qty + ' worth of ' + symbol + ' at $' + str(sellprice))
-                open_position = False
-                break
-
-    # Buys if MACD Histogram (MACD - MACD Signal) is positive 
-	# Also buys if price has dropped 2% since last sale
-	#
-    # WIP (Strategy and implementation): 
-	# Buys if MACD is .01 less than MACD at purchase.
-    # Buys if cost is at least .6% less than revenue from last trade
-    # This ensures that insignificant fluctuations don't create orders.
-    while True:
-        sleep(1)
-        df = getminutedata(symbol)
-        print('Closed position. MACDH:')
-        print(ta.trend.macd_diff(df.Close).iloc[-1])
-        if not open_position:
-            if (
-                    ta.trend.macd_diff(df.Close).iloc[-1] > 0 \
-                    and ta.trend.macd_diff(df.Close).iloc[-2] < 0 \
-                    # and (sellprice - float(df.iloc[-1].Close)) > (sellprice * 0.003) \
-                    # and sellmacd - float(ta.trend.macd(df.Close).iloc[-1]) > 0.01 \
-            ) or sellprice - float(df.iloc[-1].Close) > (sellprice * 0.02):
-                order = client.create_market_order(symbol=symbol, side='buy', funds=qty)
-                buymacd = float(ta.trend.macd(df.Close).iloc[-1])
-                buyprice = float(df.iloc[-1].Close)
-		sleep(4)
-                print('Bought $' + qty + ' worth of ' + symbol + ' at $' + str(buyprice))
-                open_position = True
-                break
-    return buyprice
+def main(argv=None):
+    parser = argparse.ArgumentParser(description='KuCoin MACD swing bot (DRY_RUN by default)')
+    parser.add_argument('--once', action='store_true', help='fetch data, evaluate one signal, then exit')
+    args = parser.parse_args(argv)
+    client = make_client()
+    try:
+        run(client, once=args.once)
+    except KeyboardInterrupt:
+        print('\nStopped.')
 
 
 if __name__ == '__main__':
-    buyprice = 0
-    buymacd = 0
-    sellprice = 0
-    sellmacd = 0
-    funds = config.FUNDS
-    symbol = config.SYMBOL
-    while True:
-        buyprice = tradingstrat(symbol, funds, buyprice, buymacd)
+    main()

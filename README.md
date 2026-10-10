@@ -1,45 +1,75 @@
-# Crypto Indicator Swing Bot (Kucoin) #
-Swing trading bot that attempts to capitalize on short term reversal events using the MACD indicator. 
+<p align="center">
+  <img src=".github/banner.png" alt="Indicator Bot" width="100%">
+</p>
 
-Currently requires that you already have an open position in your desired trading pair.
+<p align="center">
+  <a href="https://github.com/nlaratta/indicator-bot/actions/workflows/ci.yml"><img src="https://github.com/nlaratta/indicator-bot/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2D6A4F" alt="MIT license"></a>
+</p>
 
-## Strategy ##
+A swing trading bot for KuCoin that tries to catch short-term reversals using the MACD indicator. It starts in dry-run mode: it reads public candles, computes signals and logs what it would buy or sell, with no orders and no API keys.
 
-- Sells if MACD crosses below the MACD signal line and price has risen by .4% since purchase.
-- Buys if MACD crosses above the MACD signal line.
-	- Also buys if price drops by 2% since last sale.
+> **Risk disclaimer.** This is a hobby project, not financial advice. Crypto trading can lose you money fast, and the strategy is a simple foundation with no guarantee of profit. Use it at your own risk, and run it in `DRY_RUN` first. The author is not responsible for any losses.
 
-## Setup ##
+## Quick start
 
-1. Follow [https://support.kucoin.plus/hc/en-us/articles/360015102174-How-to-Create-an-API-](https://support.kucoin.plus/hc/en-us/articles/360015102174-How-to-Create-an-API- "Kucoin API guide") to create a Kucoin API.
-2. Open config.py in a text editor.
-	1. Replace fields in credentials with your api-key, api-secret, and api-passphrase.
-	1. Modify fee percentage, change trading pair, and specify the amount of funds in USDT allowed by the bot to trade with.
+Needs Python 3.12 or newer.
 
-## Running the bot ##
+With [uv](https://docs.astral.sh/uv/):
 
-**On Windows:**
+```bash
+git clone https://github.com/nlaratta/indicator-bot.git
+cd indicator-bot
+uv venv
+uv pip install -r requirements.txt
+uv run python main.py --once   # one dry-run iteration, then exit
+uv run python main.py          # keep running (Ctrl+C to stop)
+```
 
-1. Execute the 'run.bat' file.
+With plain venv and pip:
 
-**On Linux:**
+```bash
+git clone https://github.com/nlaratta/indicator-bot.git
+cd indicator-bot
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python main.py --once
+```
 
-1. Install virtualenv, create and activate a Python3 virtual environment    :
+Run the tests with `pip install -r requirements-dev.txt && pytest`.
 
-    `pip install virtualenv`  
-	`python3 -m venv env`  
-	`source env/bin/activate`  
+## Configuration
 
-2. Install requirements:
+Copy `.env.example` to `.env` (git-ignored). All settings are environment variables:
 
-    `pip install -r requirements.txt`
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `DRY_RUN` | `1` | `1` logs signals only. `0` places real market orders. |
+| `KUCOIN_API_KEY`, `KUCOIN_API_SECRET`, `KUCOIN_API_PASSPHRASE` | empty | Required only when `DRY_RUN=0`. [How to create an API key](https://support.kucoin.plus/hc/en-us/articles/360015102174-How-to-Create-an-API-). |
+| `SYMBOL` | `BTC-USDT` | Trading pair. |
+| `FUNDS` | `10` | USDT value of each order. |
+| `PERIOD` | `5min` | Candle size (`1min` up to `1week`). |
+| `FEE` | `0.001` | Your fee rate (`0.001` = 0.1%). |
+| `POLL_SECONDS` | `1` | Delay between polls. |
 
-3. Run the program:
+Live trading refuses to start unless `DRY_RUN=0` and all three credentials are set.
 
-    `python main.py`
+## How it works
 
-# DISCLAIMER #
+- Sells when the MACD histogram crosses below zero and price is more than 0.4% above the last buy price.
+- Buys when the MACD histogram crosses above zero.
+- Also buys if price falls more than 2% below the last sale.
+- The bot assumes you already hold the asset when it starts, so its first move is a sell (without the gain check, since the buy price is unknown).
+- The signal logic is a pure function in `strategy.py`, covered by tests that use synthetic price series.
 
-I am not responsible for any losses incurred through the use of this bot.
+## Project structure
 
-In it's current state, the bot is little more than a foundation to build off of. New trading strategies will be implemented with updates, along with a more dynamic interface.
+- `main.py` fetches KuCoin candles and runs the loop (or logs, in dry run).
+- `strategy.py` holds the pure `decide()` signal function.
+- `config.py` reads settings from the environment and `.env`.
+- `tests/` has the pytest suite (no network).
+
+## License
+
+[MIT](LICENSE) © Noah Laratta
